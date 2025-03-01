@@ -5,7 +5,7 @@ import Login from "../Login/login";
 import AddReport from "../components/addReport";
 import ErrorPage from "../Error/ErrorPage";
 import Header from "../components/Header";
-import Employees from "../components/employees";
+import Users from "../components/users";
 
 function Direction() {
   return (
@@ -18,7 +18,7 @@ function Direction() {
       <Route element={<Header />}>
         <Route path="/" element={<Home />} />
         <Route path="/addReport" element={<AddReport />} />
-        <Route path="/employees" element={<Employees />} />
+        <Route path="/users" element={<Users />} />
       </Route>
       <Route path="*" element={<ErrorPage />} /> {/* 404 sahifa */}
     </Routes>

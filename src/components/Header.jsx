@@ -1,5 +1,5 @@
-import {  Outlet, useLocation } from "react-router-dom";
-import "../styles/Header.css"
+import { Outlet, useLocation } from "react-router-dom";
+import "../styles/Header.css";
 
 function Header() {
   const location = useLocation();
@@ -11,7 +11,10 @@ function Header() {
 
   return (
     <div className="headerflex">
-      <h1>Header</h1>
+      <div>
+        <h1>Header</h1>
+        <div>hello justify</div>
+      </div>
       <div className="p-4">
         <Outlet /> {/* Bu joyda sahifalar almashadi */}
       </div>
