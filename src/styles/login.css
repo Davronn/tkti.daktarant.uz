@@ -47,9 +47,7 @@ body {
     cursor: pointer;
   }
   
-  button:hover {
-    background: #5a67d8;
-  }
+  
   
   .error {
     color: red;

@@ -1,168 +1,481 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { PDFDocument } from "pdf-lib";
 import jsPDF from "jspdf";
+import '../styles/AddReport.css'; 
+import { ToastContainer, toast } from 'react-toastify';
+import 'react-toastify/dist/ReactToastify.css';
 
 const AddReport = () => {
-  const [formData, setFormData] = useState({
-    firstName: "",
-    lastName: "",
-    age: "",
+  // Birinchi forma uchun state
+  const [report1, setReport1] = useState({
+    title: '',
+    date: '',
+    file: null
   });
 
-  const [generatedText, setGeneratedText] = useState("");
-  const [oldPdfFile, setOldPdfFile] = useState(null);
+  // Ikkinchi forma uchun state
+  const [report2, setReport2] = useState({
+    title: '',
+    date: '',
+    file: null
+  });
 
-  const handleChange = (e) => {
-    const { name, value } = e.target;
-    setFormData((prev) => ({ ...prev, [name]: value }));
-  };
+  // Uchinchi forma uchun state
+  const [report3, setReport3] = useState({
+    title: '',
+    date: '',
+    file: null
+  });
 
-  const handleFileUpload = (e) => {
-    if (e.target.files && e.target.files.length > 0) {
-      setOldPdfFile(e.target.files[0]);
+  // To'rtinchi forma uchun state
+  const [report4, setReport4] = useState({
+    title: '',
+    date: '',
+    file: null
+  });
+
+  // Beshinchi forma uchun state
+  const [report5, setReport5] = useState({
+    title: '',
+    date: '',
+    file: null
+  });
+
+  const [isGoogleReady, setIsGoogleReady] = useState(false);
+
+  useEffect(() => {
+    const loadGoogleAPI = () => {
+      const script = document.createElement('script');
+      script.src = 'https://accounts.google.com/gsi/client';
+      script.async = true;
+      script.defer = true;
+      document.body.appendChild(script);
+      script.onload = initGoogleClient;
+    };
+
+    loadGoogleAPI();
+  }, []);
+
+  const initGoogleClient = async () => {
+    try {
+      const tokenClient = google.accounts.oauth2.initTokenClient({
+        client_id: '',
+        scope: 'https://www.googleapis.com/auth/drive.file',
+        callback: () => {
+          setIsGoogleReady(true);
+        },
+      });
+
+      if (!tokenClient) {
+        throw new Error('Token client initialization failed');
+      }
+
+      setIsGoogleReady(true);
+    } catch (error) {
+      console.error('Google API initialization error:', error);
+      alert('Google API ni yuklashda xatolik yuz berdi');
     }
   };
 
- 
-  const handleSubmit = () => {
-    const { firstName, lastName, age } = formData;
-    if (!firstName || !lastName || !age) {
-      alert("Barcha maydonlarni to'ldiring!");
-      return;
+  const uploadToDrive = async (pdfBlob, fileName) => {
+    try {
+      const tokenClient = google.accounts.oauth2.initTokenClient({
+        client_id: '',
+        scope: 'https://www.googleapis.com/auth/drive.file',
+        callback: async (response) => {
+          if (response.error) {
+            throw response;
+          }
+
+          const accessToken = response.access_token;
+          const file = new File([pdfBlob], fileName, { type: 'application/pdf' });
+          
+          const metadata = {
+            name: fileName,
+            mimeType: 'application/pdf',
+            parents: ['']
+          };
+
+          const form = new FormData();
+          form.append('metadata', new Blob([JSON.stringify(metadata)], { type: 'application/json' }));
+          form.append('file', file);
+
+          const uploadResponse = await fetch('https://www.googleapis.com/upload/drive/v3/files?uploadType=multipart', {
+            method: 'POST',
+            headers: {
+              Authorization: `Bearer ${accessToken}`,
+            },
+            body: form,
+          });
+
+          if (!uploadResponse.ok) {
+            throw new Error('Google Drivega yuklashda xatolik');
+          }
+
+          const result = await uploadResponse.json();
+          console.log('File uploaded successfully:', result);
+          
+          // Muvaffaqiyatli yuklangandan keyin toast chiqarish
+          toast.success('Fayl Google Drivega muvaffaqiyatli yuklandi!', {
+            position: "top-right",
+            autoClose: 5000,
+            hideProgressBar: false,
+            closeOnClick: true,
+            pauseOnHover: true,
+            draggable: true,
+            progress: undefined,
+            style: {
+              background: '#4ade80',
+              color: '#fff'
+            }
+          });
+        },
+      });
+
+      tokenClient.requestAccessToken();
+    } catch (error) {
+      console.error('Upload error:', error);
+      // Xatolik yuz berganda toast chiqarish
+      toast.error('Faylni Google Drivega yuklashda xatolik yuz berdi!', {
+        position: "top-right",
+        autoClose: 5000,
+        hideProgressBar: false,
+        closeOnClick: true,
+        pauseOnHover: true,
+        draggable: true,
+        progress: undefined,
+        style: {
+          background: '#ef4444',
+          color: '#fff'
+        }
+      });
     }
-    const text = `${firstName} ${lastName} bu o'quvchi Toshkent Kimyo Texnologiya Institutining SMM fakultetida o'qiydi va uni yoshi ${age} da.`;
-    setGeneratedText(text);
   };
 
-  const downloadPDF = async () => {
-    const doc = new jsPDF();
-    doc.setFont("times", "normal");
-    doc.setFontSize(14);
-  
-    const pageWidth = doc.internal.pageSize.getWidth();
-    const titleFontSize = 18;
-    doc.setFontSize(titleFontSize);
-    doc.setFont("times", "bold");
-  
-    const titleText = "HISOBOT";
-    const titleWidth = doc.getTextWidth(titleText);
-    const titleX = (pageWidth - titleWidth) / 2;
-    const titleY = 20;
-  
-    doc.text(titleText, titleX, titleY);
-  
-    const textStartY = titleY + 10;
-    doc.setFontSize(14);
-    doc.setFont("times", "normal");
-  
-    const margin = 10;
-    const textWidth = pageWidth - 2 * margin;
-    const splitText = doc.splitTextToSize(generatedText, textWidth);
-    doc.text(splitText, margin, textStartY);
-  
-    // Sana va vaqtni olish (YYYY-MM-DD_HH-MM-SS formatida)
-    const today = new Date();
-    const formattedDate = today.toISOString().split("T")[0]; // "2025-02-16" formatida
-    const hours = String(today.getHours()).padStart(2, "0"); // 09, 10, 11...
-    const minutes = String(today.getMinutes()).padStart(2, "0"); // 01, 02...
-    const seconds = String(today.getSeconds()).padStart(2, "0"); // 05, 10...
-  
-    // Foydalanuvchi ismi va vaqtni fayl nomiga qo‘shish
-    const fileName = `${formData.firstName}_${formData.lastName}__Sana__${formattedDate}__Vaqti__${hours}-${minutes}-${seconds}.pdf`;
-  
-    const pdfBlob = new Blob([doc.output("blob")], { type: "application/pdf" });
-  
-    if (oldPdfFile) {
-      await mergePDFs(pdfBlob, oldPdfFile, fileName);
-    } else {
-      const url = URL.createObjectURL(pdfBlob);
+  const generateAndUploadPDF = async () => {
+    try {
+      // Asosiy PDF yaratish
+      const doc = new jsPDF();
+      doc.setFont("times", "normal");
+      doc.setFontSize(14);
+
+      // Sarlavha
+      doc.setFontSize(18);
+      doc.setFont("times", "bold");
+      doc.text("HISOBOT", 105, 20, { align: "center" });
+      
+      let yPosition = 40;
+
+      // Har bir reportni PDF ga qo'shish
+      const reports = [report1, report2, report3, report4, report5];
+      const reportTitles = [
+        "Konferensiyalar",
+        "Maqolalar",
+        "Stajirovkalar",
+        "Seminar va Vebinarlar",
+        "Patent va Foydali Modellar"
+      ];
+      
+      for (let i = 0; i < reports.length; i++) {
+        const report = reports[i];
+        if (report.title || report.date || report.file) {
+          doc.setFontSize(14);
+          doc.setFont("times", "bold");
+          doc.text(reportTitles[i], 20, yPosition);
+          yPosition += 10;
+
+          doc.setFont("times", "normal");
+          if (report.title) {
+            doc.text(`Nomi: ${report.title}`, 20, yPosition);
+            yPosition += 10;
+          }
+          if (report.date) {
+            doc.text(`Sana: ${report.date}`, 20, yPosition);
+            yPosition += 10;
+          }
+          yPosition += 10; // Qo'shimcha bo'sh joy
+        }
+      }
+
+      // Asosiy PDF ni blob ga o'zgartirish
+      const mainPdfBlob = new Blob([doc.output("blob")], { type: "application/pdf" });
+
+      // Barcha PDF fayllarni birlashtirish
+      const mergedPdf = await PDFDocument.create();
+      
+      // Asosiy PDF ni qo'shish
+      const mainPdfBytes = await mainPdfBlob.arrayBuffer();
+      const mainPdfDoc = await PDFDocument.load(mainPdfBytes);
+      const mainPages = await mergedPdf.copyPages(mainPdfDoc, mainPdfDoc.getPageIndices());
+      mainPages.forEach((page) => mergedPdf.addPage(page));
+
+      // Yuklangan PDF fayllarni qo'shish
+      for (const report of reports) {
+        if (report.file) {
+          const fileBytes = await report.file.arrayBuffer();
+          const pdf = await PDFDocument.load(fileBytes);
+          const pages = await mergedPdf.copyPages(pdf, pdf.getPageIndices());
+          pages.forEach((page) => mergedPdf.addPage(page));
+        }
+      }
+
+      // Yakuniy PDF ni yaratish
+      const mergedPdfBytes = await mergedPdf.save();
+      const mergedPdfBlob = new Blob([mergedPdfBytes], { type: "application/pdf" });
+
+      // Fayl nomini yaratish
+      const today = new Date();
+      const fileName = `Hisobot_${today.toISOString().split('T')[0]}.pdf`;
+
+      // Google Drive ga yuklash
+      await uploadToDrive(mergedPdfBlob, fileName);
+
+      // Mahalliy yuklab olish uchun
+      const url = URL.createObjectURL(mergedPdfBlob);
       const a = document.createElement("a");
       a.href = url;
-      a.download = fileName; // Foydalanuvchi ismi + sana + vaqt formatida fayl nomi
+      a.download = fileName;
       document.body.appendChild(a);
       a.click();
       document.body.removeChild(a);
+      URL.revokeObjectURL(url);
+
+    } catch (error) {
+      console.error("PDF yaratishda xatolik:", error);
+      alert("PDF yaratishda xatolik yuz berdi");
     }
-  };
-  
-  const mergePDFs = async (newPdfBlob, oldPdfFile) => {
-    const newPdf = await PDFDocument.load(await newPdfBlob.arrayBuffer());
-    const oldPdfBytes = await oldPdfFile.arrayBuffer();
-    const oldPdf = await PDFDocument.load(oldPdfBytes);
-
-    const mergedPdf = await PDFDocument.create();
-
-    const newPages = await mergedPdf.copyPages(newPdf, newPdf.getPageIndices());
-    newPages.forEach((page) => mergedPdf.addPage(page));
-
-    const oldPages = await mergedPdf.copyPages(oldPdf, oldPdf.getPageIndices());
-    oldPages.forEach((page) => mergedPdf.addPage(page));
-
-    const mergedPdfBytes = await mergedPdf.save();
-    const blob = new Blob([mergedPdfBytes], { type: "application/pdf" });
-    const url = URL.createObjectURL(blob);
-
-    const a = document.createElement("a");
-    a.href = url;
-    a.download = "Hisobot.pdf";
-    document.body.appendChild(a);
-    a.click();
-    document.body.removeChild(a);
   };
 
   return (
-    <div className="flex flex-col items-center p-6 bg-gray-900 min-h-screen text-white">
-      <div className="bg-gray-800 p-6 rounded-lg shadow-lg w-96">
-        <h2 className="text-xl font-semibold mb-4">O'quvchi Ma'lumotlari</h2>
-        <input
-          type="text"
-          name="firstName"
-          placeholder="Ism"
-          value={formData.firstName}
-          onChange={handleChange}
-          className="w-full p-2 mb-2 rounded bg-gray-700 text-white"
-        />
-        <input
-          type="text"
-          name="lastName"
-          placeholder="Familiya"
-          value={formData.lastName}
-          onChange={handleChange}
-          className="w-full p-2 mb-2 rounded bg-gray-700 text-white"
-        />
-        <input
-          type="number"
-          name="age"
-          placeholder="Yosh"
-          value={formData.age}
-          onChange={handleChange}
-          className="w-full p-2 mb-4 rounded bg-gray-700 text-white"
-        />
-        <button
-          onClick={handleSubmit}
-          className="w-full bg-blue-500 p-2 rounded hover:bg-blue-600"
-        >
-          Create
-        </button>
-      </div>
-      {generatedText && (
-        <div className="mt-4 p-4 bg-gray-800 rounded-lg w-96">
-          <p>{generatedText}</p>
-          <input
-            type="file"
-            accept="application/pdf"
-            onChange={handleFileUpload}
-            className="w-full bg-gray-700 p-2 rounded text-white mt-2"
-          />
+    <div className="p-4 transition-all duration-300">
+      <ToastContainer
+        position="top-right"
+        autoClose={5000}
+        hideProgressBar={false}
+        newestOnTop={false}
+        closeOnClick
+        rtl={false}
+        pauseOnFocusLoss
+        draggable
+        pauseOnHover
+        theme="colored"
+      />
+      <div className="max-w-[1100px] mx-auto space-y-6">
+        {/* Birinchi forma */}
+        <div className="bg-blue-500 shadow-lg rounded-lg p-6">
+          <h3 className="text-lg font-semibold mb-4">Conferensiya</h3>
+          <div className="space-y-4">
+            <div>
+              <label className="block text-sm font-medium text-gray-00 mb-1">
+                Conferensiya nomi
+              </label>
+              <input
+                type="text"
+                value={report1.title}
+                onChange={(e) => setReport1({...report1, title: e.target.value})}
+                className="m-w-[1000px] px-4 py-2 border border-gray-300 rounded-md"
+                placeholder="Conferensiya nomini kiriting"
+              />
+            </div>
+            <div>
+              <label className="block text-sm font-medium text-gray-700 mb-1">
+                Sana
+              </label>
+              <input
+                type="date"
+                value={report1.date}
+                onChange={(e) => setReport1({...report1, date: e.target.value})}
+                className="w-full px-4 py-2 border border-gray-300 rounded-md"
+              />
+            </div>
+            <div>
+              <label className="block text-sm font-medium text-gray-700 mb-1">
+                Fayl yuklash
+              </label>
+              <input
+                type="file"
+                onChange={(e) => setReport1({...report1, file: e.target.files[0]})}
+                className="w-full"
+                accept=".pdf,.doc,.docx"
+              />
+            </div>
+          </div>
+        </div>
+
+        {/* Ikkinchi forma */}
+        <div className="bg-white shadow-lg rounded-lg p-6">
+          <h3 className="text-lg font-semibold mb-4">Maqolalar</h3>
+          <div className="space-y-4">
+            <div>
+              <label className="block text-sm font-medium text-gray-700 mb-1">
+                Maqolalar nomi
+              </label>
+              <input
+                type="text"
+                value={report2.title}
+                onChange={(e) => setReport2({...report2, title: e.target.value})}
+                className="w-full px-4 py-2 border border-gray-300 rounded-md"
+                placeholder="Maqola nomini kiriting"
+              />
+            </div>
+            <div>
+              <label className="block text-sm font-medium text-gray-700 mb-1">
+                Sana
+              </label>
+              <input
+                type="date"
+                value={report2.date}
+                onChange={(e) => setReport2({...report2, date: e.target.value})}
+                className="w-full px-4 py-2 border border-gray-300 rounded-md"
+              />
+            </div>
+            <div>
+              <label className="block text-sm font-medium text-gray-700 mb-1">
+                Fayl yuklash
+              </label>
+              <input
+                type="file"
+                onChange={(e) => setReport2({...report2, file: e.target.files[0]})}
+                className="w-full"
+                accept=".pdf,.doc,.docx"
+              />
+            </div>
+          </div>
+        </div>
+
+        {/* Uchinchi forma */}
+        <div className="bg-white shadow-lg rounded-lg p-6">
+          <h3 className="text-lg font-semibold mb-4">Stajirofkalar</h3>
+          <div className="space-y-4">
+            <div>
+              <label className="block text-sm font-medium text-gray-700 mb-1">
+                Stajirofkalar
+              </label>
+              <input
+                type="text"
+                value={report3.title}
+                onChange={(e) => setReport3({...report3, title: e.target.value})}
+                className="m-w-full px-4 py-2 border border-gray-300 rounded-md"
+                placeholder="Stajirofkalar nomini kiriting"
+              />
+            </div>
+            <div>
+              <label className="block text-sm font-medium text-gray-700 mb-1">
+                Sana
+              </label>
+              <input
+                type="date"
+                value={report3.date}
+                onChange={(e) => setReport3({...report3, date: e.target.value})}
+                className="m-w-full px-4 py-2 border border-gray-300 rounded-md"
+              />
+            </div>
+            <div>
+              <label className="block text-sm font-medium text-gray-700 mb-1">
+                Fayl yuklash
+              </label>
+              <input
+                type="file"
+                onChange={(e) => setReport3({...report3, file: e.target.files[0]})}
+                className="m-w-full"
+                accept=".pdf,.doc,.docx"
+              />
+            </div>
+          </div>
+        </div>
+
+        {/* To'rtinchi forma */}
+        <div className="bg-white shadow-lg rounded-lg p-6">
+          <h3 className="text-lg font-semibold mb-4">Seminar,Webinar</h3>
+          <div className="space-y-4">
+            <div>
+              <label className="block text-sm font-medium text-gray-700 mb-1">
+                Conferensiya nomi
+              </label>
+              <input
+                type="text"
+                value={report4.title}
+                onChange={(e) => setReport4({...report4, title: e.target.value})}
+                className="m-w-full px-4 py-2 border border-gray-300 rounded-md"
+                placeholder="Seminar,Webinar nomini kiriting"
+              />
+            </div>
+            <div>
+              <label className="block text-sm font-medium text-gray-700 mb-1">
+                Sana
+              </label>
+              <input
+                type="date"
+                value={report4.date}
+                onChange={(e) => setReport4({...report4, date: e.target.value})}
+                className="m-w-full px-4 py-2 border border-gray-300 rounded-md"
+              />
+            </div>
+            <div>
+              <label className="block text-sm font-medium text-gray-700 mb-1">
+                Fayl yuklash
+              </label>
+              <input
+                type="file"
+                onChange={(e) => setReport4({...report4, file: e.target.files[0]})}
+                className="m-w-full"
+                accept=".pdf,.doc,.docx"
+              />
+            </div>
+          </div>
+        </div>
+
+        {/* Beshinchi forma */}
+        <div className="bg-white shadow-lg rounded-lg p-6">
+          <h3 className="text-lg font-semibold mb-4">Patentlar,Foydali moddalar</h3>
+          <div className="space-y-4">
+            <div>
+              <label className="block text-sm font-medium text-gray-700 mb-1">
+                Conferensiya nomi
+              </label>
+              <input
+                type="text"
+                value={report5.title}
+                onChange={(e) => setReport5({...report5, title: e.target.value})}
+                className="m-w-full px-4 py-2 border border-gray-300 rounded-md"
+                placeholder="Patentlar,Foydali moddalar nomini kiriting"
+              />
+            </div>
+            <div>
+              <label className="block text-sm font-medium text-gray-700 mb-1">
+                Sana
+              </label>
+              <input
+                type="date"
+                value={report5.date}
+                onChange={(e) => setReport5({...report5, date: e.target.value})}
+                className="m-w-full px-4 py-2 border border-gray-300 rounded-md"
+              />
+            </div>
+            <div>
+              <label className="block text-sm font-medium text-gray-700 mb-1">
+                Fayl yuklash
+              </label>
+              <input
+                type="file"
+                onChange={(e) => setReport5({...report5, file: e.target.files[0]})}
+                className="m-w-full"
+                accept=".pdf,.doc,.docx"
+              />
+            </div>
+          </div>
+        </div>
+
+        <div className="flex justify-end space-x-4">
           <button
-            onClick={downloadPDF}
-            className="mt-2 w-full bg-green-500 p-2 rounded hover:bg-green-600"
+            onClick={generateAndUploadPDF}
+            className="bg-green-300 text-black py-2 px-6 rounded-md hover:bg-green-700"
           >
-            PDF yuklab olish
+            PDF yaratish va Drive ga yuklash
           </button>
         </div>
-      )}
-    </div>  
+      </div>
+    </div>
   );
 };
 
